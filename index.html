@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Consolidação de Pedidos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .textarea-custom { white-space: pre; overflow-wrap: normal; overflow-x: auto; font-family: monospace; font-size: 0.875rem; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        .table-header { background-color: #65a33e; color: white; text-align: center; } /* Cor verde similar ao Excel */
+        .table-row:nth-child(even) { background-color: #f9fafb; }
+        .table-row:hover { background-color: #e5e7eb; }
+    </style>
+</head>
+<body class="text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <header class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-800">Conciliador de Dados (Dashboard)</h1>
+            <p class="text-sm text-gray-500 mt-1">Cole os dados do Retira e carregue a planilha Gerenciamento (Excel) para gerar a visão consolidada.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Entrada 1: Dados do Retira -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col h-72">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="font-semibold text-blue-700 text-sm">1. Dados do Retira (Colar Dados)</h2>
+                </div>
+                <textarea id="input-retira" class="textarea-custom w-full flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Cole aqui os dados do retira..."></textarea>
+            </div>
+
+            <!-- Entrada 2: Planilha Gerenciamento (Excel) -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col h-72 justify-center items-center relative">
+                <div class="absolute top-4 left-4 right-4 flex justify-between items-center mb-2">
+                    <h2 class="font-semibold text-green-700 text-sm">2. Planilha Gerenciamento (Excel)</h2>
+                </div>
+                <div class="w-full mt-8 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-600 mb-2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>
+                    <p class="text-sm text-gray-600 text-center mb-4">Selecione o arquivo Excel (.xlsx) contendo as abas <br><b>Pedidos Confirmados</b> e <b>Hist Faturamento</b></p>
+                    <input type="file" id="input-excel" accept=".xlsx, .xls, .xlsm" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"/>
+                </div>
+            </div>
+            
+        </div>
+
+        <div class="flex justify-center gap-4 py-2">
+            <button onclick="processData()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg shadow transition duration-200 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                Processar e Consolidar
+            </button>
+            <button onclick="copyToClipboard()" id="btn-copy" class="hidden bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2 px-6 rounded-lg shadow transition duration-200 items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                Copiar Tabela
+            </button>
+        </div>
+
+        <div id="results-container" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+            <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h2 class="font-bold text-gray-700">Resultado Consolidado</h2>
+                <span id="row-count" class="text-xs font-semibold bg-blue-100 text-blue-800 px-2 py-1 rounded"></span>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="result-table" class="w-full text-sm text-left whitespace-nowrap">
+                    <thead>
+                        <tr class="table-header text-xs uppercase">
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">PEDIDO</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">Estabelecimento</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">PEDIDO PROCOMP</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">ID DO CLIENTE</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">Código</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">ITEM</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">QUANTIDADE</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">CLIENTE</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">DATA INSERÇÃO DO RETIRA</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">VALOR DO PEDIDO C/ IMPOSTOS</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">VOLUMES</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">CAIXA</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">DIMENSÕES DAS CAIXAS</th>
+                            <th class="px-4 py-3 font-semibold border-r border-green-600">PESO</th>
+                        </tr>
+                    </thead>
+                    <tbody id="result-body" class="divide-y divide-gray-200 text-gray-700">
+                        <!-- Rows will be injected here by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Helper function to normalize headers (removes spaces, accents, special chars)
+         * This guarantees matching even if the pasted text has weird spaces or formatting.
+         */
+        function cleanHeader(str) {
+            if (!str) return "";
+            return String(str)
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, ''); // Remove espaços, pontuação e símbolos
+        }
+
+        /**
+         * Helper function to parse TSV (Tab-Separated Values) from textareas.
+         * Returns an array of objects where keys are the normalized headers.
+         */
+        function parseTSV(text) {
+            if (!text || text.trim() === '') return [];
+            
+            const lines = text.trim().split(/\r?\n/);
+            if (lines.length < 2) return [];
+
+            // Detecta se foi colado com tabulação (Excel) ou com espaços múltiplos (PDF/Web)
+            let delimiter = '\t';
+            if (!lines[0].includes('\t')) {
+                delimiter = /\s{2,}/;
+            }
+
+            // Extract and clean headers
+            const headers = lines[0].split(delimiter).map(cleanHeader);
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(delimiter);
+                let rowObject = {};
+                
+                headers.forEach((header, index) => {
+                    if (header) {
+                        rowObject[header] = values[index] ? values[index].trim() : "";
+                    }
+                });
+                
+                data.push(rowObject);
+            }
+            return data;
+        }
+
+        async function processData() {
+            const textRetira = document.getElementById('input-retira').value;
+            const fileInput = document.getElementById('input-excel');
+
+            if (!textRetira) {
+                alertCustom("Atenção: Cole os dados do Retira na caixa de texto.");
+                return;
+            }
+            if (!fileInput.files.length) {
+                alertCustom("Atenção: Selecione o arquivo Excel da planilha Gerenciamento.");
+                return;
+            }
+
+            const dataRetira = parseTSV(textRetira);
+            
+            // Lendo o arquivo Excel
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    let sheetConfirmadosName = null;
+                    let sheetFaturamentoName = null;
+
+                    // Procurando pelas abas dinamicamente
+                    workbook.SheetNames.forEach(name => {
+                        const lowerName = name.toLowerCase();
+                        if (lowerName.includes('confirmados')) sheetConfirmadosName = name;
+                        if (lowerName.includes('faturamento')) sheetFaturamentoName = name;
+                    });
+
+                    if (!sheetConfirmadosName || !sheetFaturamentoName) {
+                        alertCustom("Erro: Não foi possível encontrar as abas 'Pedidos Confirmados' ou 'Hist Faturamento' no arquivo Excel.");
+                        return;
+                    }
+
+                    // Função para extrair dados garantindo a leitura do cabeçalho correto
+                    function extractData(sheet, expectedHeaderRaw) {
+                        const expectedHeader = cleanHeader(expectedHeaderRaw);
+                        const aoa = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ""});
+                        if (!aoa || aoa.length === 0) return [];
+                        
+                        let headerIndex = aoa.findIndex(row => row.some(cell => cleanHeader(cell) === expectedHeader));
+                        if (headerIndex === -1) headerIndex = 0; // Se não achar, usa a linha 1 como fallback
+
+                        const headers = aoa[headerIndex].map(cleanHeader);
+                        const data = [];
+
+                        for (let i = headerIndex + 1; i < aoa.length; i++) {
+                            const row = aoa[i];
+                            // Pular linhas vazias
+                            if (!row || row.length === 0 || row.every(cell => cell === "")) continue;
+                            
+                            let rowObj = {};
+                            row.forEach((cell, idx) => {
+                                if (headers[idx]) {
+                                    rowObj[headers[idx]] = String(cell).trim();
+                                }
+                            });
+                            data.push(rowObj);
+                        }
+                        return data;
+                    }
+
+                    // Extraímos utilizando as chaves principais como âncora para achar o cabeçalho
+                    const dataConfirmados = extractData(workbook.Sheets[sheetConfirmadosName], "BORD");
+                    const dataFaturamento = extractData(workbook.Sheets[sheetFaturamentoName], "COD");
+
+                    // Executa a lógica de consolidação
+                    consolidate(dataRetira, dataConfirmados, dataFaturamento);
+                } catch(err) {
+                    console.error(err);
+                    alertCustom("Erro ao processar o arquivo Excel. Verifique se o arquivo não está corrompido.");
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function consolidate(dataRetira, dataConfirmados, dataFaturamento) {
+            // 1. Dicionário do Retira
+            const dictRetira = {};
+            dataRetira.forEach(row => {
+                const pedido = row["PEDIDO"] || "";
+                if (pedido) {
+                    dictRetira[pedido] = row;
+                }
+            });
+
+            // 2. Dicionário Hist Faturamento (COD -> CODCLIENTE)
+            const dictFaturamento = {};
+            dataFaturamento.forEach(row => {
+                const cod = row["COD"] || "";
+                if (cod) {
+                    dictFaturamento[cod] = row["CODCLIENTE"] || "";
+                }
+            });
+
+            const finalData = [];
+
+            // 3. Iterando sobre "Pedidos Confirmados" para aplicar regras
+            dataConfirmados.forEach(rowConfirmado => {
+                const pedidoId = rowConfirmado["BORD"] || "";
+                
+                if (!pedidoId || pedidoId.toUpperCase() === 'BORD') return; // Pular vazios ou cabeçalhos repetidos
+
+                const retiraMatch = dictRetira[pedidoId] || {};
+                const item = rowConfirmado["BPROD"] || "";
+                
+                // Regra do Estabelecimento
+                let estabelecimento = "";
+                const blcust = rowConfirmado["BLCUST"] || "";
+                
+                // .includes() garante que vai achar mesmo se tiver 35012913.0 ou algo do tipo
+                if (blcust.includes("35012913")) {
+                    estabelecimento = "407";
+                } else if (blcust.includes("35009891")) {
+                    estabelecimento = "401";
+                } else {
+                    estabelecimento = blcust || "-"; // Fallback caso não encontre (facilita auditoria)
+                }
+
+                // Filtro solicitado: Mostrar apenas estabelecimentos 407 e 401
+                if (estabelecimento !== "407" && estabelecimento !== "401") {
+                    return; // Ignora esta linha caso não seja 407 ou 401 e vai para a próxima
+                }
+
+                // Cruzamento de Código
+                let codigo = dictFaturamento[item] || retiraMatch["CODIGOPROCOMP"] || "";
+
+                // Montagem da Linha Final usando as chaves "limpas"
+                const finalRow = {
+                    pedido: pedidoId,
+                    estabelecimento: estabelecimento,
+                    pedido_procomp: retiraMatch["PEDIDODOCLIENTE"] || "",
+                    id_cliente: retiraMatch["IDDOCLIENTE"] || "",
+                    codigo: codigo, 
+                    item: item,
+                    quantidade: rowConfirmado["BQTY"] || "",
+                    cliente: retiraMatch["CLIENTE"] || "",
+                    data_retira: retiraMatch["DATAINSERCAODORETIRA"] || "",
+                    valor_impostos: retiraMatch["VALORDOPEDIDOCIMPOSTOS"] || "",
+                    volumes: retiraMatch["VOLUMES"] || "",
+                    caixa: retiraMatch["CAIXA"] || "",
+                    dimensoes: retiraMatch["DIMENSOESDASCAIXAS"] || "",
+                    peso: retiraMatch["PESO"] || ""
+                };
+
+                finalData.push(finalRow);
+            });
+
+            renderTable(finalData);
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('result-body');
+            tbody.innerHTML = ""; // Clear existing
+
+            if (data.length === 0) {
+                alertCustom("Nenhum dado pôde ser conciliado. Verifique se os cabeçalhos estão corretos (ex: BORD, PEDIDO, COD, etc).");
+                return;
+            }
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "table-row border-b border-gray-100 text-center";
+                
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-medium text-gray-900 text-left">${row.pedido}</td>
+                    <td class="px-4 py-3">${row.estabelecimento}</td>
+                    <td class="px-4 py-3">${row.pedido_procomp}</td>
+                    <td class="px-4 py-3">${row.id_cliente}</td>
+                    <td class="px-4 py-3">${row.codigo}</td>
+                    <td class="px-4 py-3">${row.item}</td>
+                    <td class="px-4 py-3 font-semibold">${row.quantidade}</td>
+                    <td class="px-4 py-3 text-left max-w-xs truncate" title="${row.cliente}">${row.cliente}</td>
+                    <td class="px-4 py-3">${row.data_retira}</td>
+                    <td class="px-4 py-3 text-right">${row.valor_impostos}</td>
+                    <td class="px-4 py-3">${row.volumes}</td>
+                    <td class="px-4 py-3">${row.caixa}</td>
+                    <td class="px-4 py-3">${row.dimensoes}</td>
+                    <td class="px-4 py-3">${row.peso}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Show results container and copy button
+            document.getElementById('results-container').classList.remove('hidden');
+            document.getElementById('btn-copy').classList.remove('hidden');
+            document.getElementById('btn-copy').classList.add('flex');
+            
+            // Update row count
+            document.getElementById('row-count').innerText = `${data.length} Linhas Consolidadas`;
+            
+            // Scroll to results
+            document.getElementById('results-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function copyToClipboard() {
+            const table = document.getElementById('result-table');
+            const btnCopy = document.getElementById('btn-copy');
+            const originalText = btnCopy.innerHTML;
+            
+            // Cria um intervalo e seleciona a tabela inteira (mantém as colunas estruturadas para o Excel)
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(table);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            try {
+                // Executa o comando de cópia nativo do navegador
+                document.execCommand('copy');
+                alertCustom("Tabela copiada! Você já pode colar (Ctrl+V) no Excel.", "success");
+                
+                // Feedback visual no botão
+                btnCopy.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-400"><path d="M20 6 9 17l-5-5"/></svg> Copiado!`;
+                btnCopy.classList.replace('bg-gray-800', 'bg-green-700');
+                btnCopy.classList.replace('hover:bg-gray-900', 'hover:bg-green-800');
+                
+                // Retorna o botão ao estado original após 3 segundos
+                setTimeout(() => {
+                    btnCopy.innerHTML = originalText;
+                    btnCopy.classList.replace('bg-green-700', 'bg-gray-800');
+                    btnCopy.classList.replace('hover:bg-green-800', 'hover:bg-gray-900');
+                }, 3000);
+
+            } catch (err) {
+                alertCustom("Falha ao copiar a tabela. Tente selecionar o texto manualmente.");
+            } finally {
+                // Limpa a seleção para não deixar a tela "azul" manchada após copiar
+                selection.removeAllRanges();
+            }
+        }
+
+        function alertCustom(message, type = "error") {
+            const existingAlert = document.getElementById('custom-alert');
+            if (existingAlert) existingAlert.remove();
+
+            const alertDiv = document.createElement('div');
+            alertDiv.id = 'custom-alert';
+            alertDiv.className = `fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white font-medium z-50 transition-all duration-300 transform translate-y-0 opacity-100 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+            alertDiv.innerHTML = message;
+            
+            document.body.appendChild(alertDiv);
+
+            setTimeout(() => {
+                alertDiv.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => alertDiv.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
