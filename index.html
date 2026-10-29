@@ -230,18 +230,19 @@
             // 1. Dicionário do Retira
             const dictRetira = {};
             dataRetira.forEach(row => {
-                const pedido = row["PEDIDO"] || "";
+                const pedido = String(row["PEDIDO"] || "").trim();
                 if (pedido) {
                     dictRetira[pedido] = row;
                 }
             });
 
-            // 2. Dicionário Hist Faturamento (COD -> CODCLIENTE)
+            // 2. Dicionário Hist Faturamento (COD -> Linha Inteira)
             const dictFaturamento = {};
             dataFaturamento.forEach(row => {
-                const cod = row["COD"] || "";
+                // Remove espaços ao redor e força maiúsculas para o cruzamento ser perfeito
+                const cod = String(row["COD"] || "").trim().toUpperCase();
                 if (cod) {
-                    dictFaturamento[cod] = row["CODCLIENTE"] || "";
+                    dictFaturamento[cod] = row;
                 }
             });
 
@@ -249,16 +250,19 @@
 
             // 3. Iterando sobre "Pedidos Confirmados" para aplicar regras
             dataConfirmados.forEach(rowConfirmado => {
-                const pedidoId = rowConfirmado["BORD"] || "";
+                const pedidoId = String(rowConfirmado["BORD"] || "").trim();
                 
                 if (!pedidoId || pedidoId.toUpperCase() === 'BORD') return; // Pular vazios ou cabeçalhos repetidos
 
                 const retiraMatch = dictRetira[pedidoId] || {};
-                const item = rowConfirmado["BPROD"] || "";
+                
+                // Limpa o item da mesma forma para garantir o "match"
+                const item = String(rowConfirmado["BPROD"] || "").trim().toUpperCase();
+                const faturamentoMatch = dictFaturamento[item] || {};
                 
                 // Regra do Estabelecimento
                 let estabelecimento = "";
-                const blcust = rowConfirmado["BLCUST"] || "";
+                const blcust = String(rowConfirmado["BLCUST"] || "").trim();
                 
                 // .includes() garante que vai achar mesmo se tiver 35012913.0 ou algo do tipo
                 if (blcust.includes("35012913")) {
@@ -274,17 +278,18 @@
                     return; // Ignora esta linha caso não seja 407 ou 401 e vai para a próxima
                 }
 
-                // Cruzamento de Código
-                let codigo = dictFaturamento[item] || retiraMatch["CODIGOPROCOMP"] || "";
+                // Cruzamento de Código e ID do Cliente (com salvaguardas caso a coluna mude de nome)
+                let codigo = faturamentoMatch["CODCLIENTE"] || faturamentoMatch["CODIGOCLIENTE"] || retiraMatch["CODIGOPROCOMP"] || "";
+                let idCliente = rowConfirmado["BLCUST"] || retiraMatch["IDDOCLIENTE"] || faturamentoMatch["ID"] || "";
 
                 // Montagem da Linha Final usando as chaves "limpas"
                 const finalRow = {
                     pedido: pedidoId,
                     estabelecimento: estabelecimento,
                     pedido_procomp: retiraMatch["PEDIDODOCLIENTE"] || "",
-                    id_cliente: retiraMatch["IDDOCLIENTE"] || "",
+                    id_cliente: idCliente,
                     codigo: codigo, 
-                    item: item,
+                    item: rowConfirmado["BPROD"] || "", // Mantém o formato original do item
                     quantidade: rowConfirmado["BQTY"] || "",
                     cliente: retiraMatch["CLIENTE"] || "",
                     data_retira: retiraMatch["DATAINSERCAODORETIRA"] || "",
